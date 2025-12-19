@@ -1,0 +1,65 @@
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  /* Dark Slate Green background for the environment */
+  background-color: #0f1c15; 
+  color: #e5e5e5;
+}
+
+#root {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+canvas {
+  touch-action: none;
+  /* Billiard Green Felt Color - Enhanced */
+  background-color: #2c5d3f; 
+  background-image: radial-gradient(circle at center, #356b4a 0%, #224a31 100%);
+  box-shadow: inset 0 0 30px rgba(0,0,0,0.7);
+}
+
+@keyframes bounce-subtle {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(5px);
+  }
+}
+
+.animate-bounce-subtle {
+  animation: bounce-subtle 2s infinite;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #0f1c15;
+}
+::-webkit-scrollbar-thumb {
+  background: #2c5d3f;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #4ade80;
+}
+
+/* Modal Animations */
+.animate-in {
+  animation: fadeIn 0.2s ease-out forwards;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}

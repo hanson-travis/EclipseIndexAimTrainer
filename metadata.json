@@ -1,0 +1,5 @@
+{
+  "description": "A billiards training application for the Eclipse Index aiming system, featuring plan and POV views.",
+  "requestFramePermissions": [],
+  "name": "App"
+}
