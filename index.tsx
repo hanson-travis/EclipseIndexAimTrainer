@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createRoot } from 'react-dom/client';
-import { Target, RotateCcw, Trophy, ChevronRight, ChevronDown, ChevronUp, Eye, EyeOff, BookOpen, Settings2, X, CheckCircle2 } from 'lucide-react';
+import { Target, RotateCcw, Trophy, ChevronRight, ChevronDown, ChevronUp, Eye, EyeOff, BookOpen, Settings2, X, CheckCircle2, CircleDashed, ArrowUpRight } from 'lucide-react';
 
 // --- Constants & Math ---
 const BALL_DIAMETER = 30; // Plan view size
@@ -199,8 +199,8 @@ const EclipseIndexTrainer = () => {
   
   // Settings
   const [isTestMode, setIsTestMode] = useState(false);
-  const [showGhostBall, setShowGhostBall] = useState(true);
-  const [showAimLine, setShowAimLine] = useState(true);
+  const [showCbVisuals, setShowCbVisuals] = useState(true); // Combines Ghost Ball & Aim Line
+  const [showObLine, setShowObLine] = useState(true); // New toggle for OB->Pocket line
   const [showGuide, setShowGuide] = useState(false);
 
   // Refs
@@ -317,17 +317,11 @@ const EclipseIndexTrainer = () => {
       setDifficultyLevel(1);
       setPendingBall(null);
       setPendingDifficulty(null);
-      // We can trigger a manual "clean" start logic here, effectively inlining startNewRound logic but with clean state
-      // Or just set state and let effect run? No, we want explicit reset.
-      // Easiest is to force values then call startNewRound (but startNewRound reads state).
-      // We'll just manually duplicate essential reset logic or use a ref to skip pending logic for one tick.
-      // Actually, since startNewRound uses pending values, let's just use them.
       setPendingBall(1);
       setPendingDifficulty(1);
-      // Wait for next tick? No, simpler to just force the function logic:
       setTimeout(() => {
         // Force reset
-        window.location.reload(); // Simplest full reset, or we can just impl logic
+        window.location.reload(); 
       }, 50);
   };
   
@@ -368,7 +362,7 @@ const EclipseIndexTrainer = () => {
     const gbY = height * 0.35; 
     
     // 1. Aim Line (CB -> GB) [TOGGLEABLE]
-    if (showAimLine) {
+    if (showCbVisuals) {
         ctx.setLineDash([5, 5]);
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
         ctx.lineWidth = 2;
@@ -391,13 +385,15 @@ const EclipseIndexTrainer = () => {
     const pocketX = centerX + Math.sin(angleRad * dirMult) * pocketDist;
     const pocketY = gbY - Math.cos(angleRad * dirMult) * pocketDist;
 
-    // 3. Shot Line (Always visible as it connects OB to Pocket)
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(obX, obY_pos);
-    ctx.lineTo(pocketX, pocketY);
-    ctx.stroke();
+    // 3. Shot Line (OB -> Pocket) [TOGGLEABLE]
+    if (showObLine) {
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(obX, obY_pos);
+        ctx.lineTo(pocketX, pocketY);
+        ctx.stroke();
+    }
 
     // 4. Pocket
     ctx.fillStyle = '#0f172a';
@@ -406,7 +402,7 @@ const EclipseIndexTrainer = () => {
     ctx.fill();
 
     // 5. Ghost Ball [TOGGLEABLE]
-    if (showGhostBall) {
+    if (showCbVisuals) {
         ctx.strokeStyle = 'rgba(255,255,255,0.6)';
         ctx.lineWidth = 1;
         ctx.setLineDash([3, 3]);
@@ -425,7 +421,7 @@ const EclipseIndexTrainer = () => {
     ctx.arc(centerX, cbY, BALL_DIAMETER / 2, 0, Math.PI * 2);
     ctx.fill();
 
-  }, [targetAngle, targetDirection, currentBall, showGhostBall, showAimLine, pocketDistance]);
+  }, [targetAngle, targetDirection, currentBall, showCbVisuals, showObLine, pocketDistance]);
 
   // --- Rendering Shooter View ---
   useEffect(() => {
@@ -609,18 +605,18 @@ const EclipseIndexTrainer = () => {
                 {/* Visual Settings Toolbar */}
                 <div className="absolute -right-3 top-12 flex flex-col gap-2">
                      <button 
-                        onClick={() => setShowAimLine(!showAimLine)}
-                        className={`p-2 rounded-full shadow-lg border backdrop-blur-md transition-all ${showAimLine ? 'bg-emerald-900/80 border-emerald-500 text-emerald-400' : 'bg-neutral-900/80 border-neutral-700 text-neutral-500'}`}
-                        title="Toggle Aim Line"
+                        onClick={() => setShowCbVisuals(!showCbVisuals)}
+                        className={`p-2 rounded-full shadow-lg border backdrop-blur-md transition-all ${showCbVisuals ? 'bg-emerald-900/80 border-emerald-500 text-emerald-400' : 'bg-neutral-900/80 border-neutral-700 text-neutral-500'}`}
+                        title="Toggle Ghost Ball & Aim Line"
                      >
-                        <Settings2 size={16} className={showAimLine ? "" : "opacity-50"} />
+                        <CircleDashed size={16} />
                      </button>
                      <button 
-                        onClick={() => setShowGhostBall(!showGhostBall)}
-                        className={`p-2 rounded-full shadow-lg border backdrop-blur-md transition-all ${showGhostBall ? 'bg-emerald-900/80 border-emerald-500 text-emerald-400' : 'bg-neutral-900/80 border-neutral-700 text-neutral-500'}`}
-                        title="Toggle Ghost Ball"
+                        onClick={() => setShowObLine(!showObLine)}
+                        className={`p-2 rounded-full shadow-lg border backdrop-blur-md transition-all ${showObLine ? 'bg-emerald-900/80 border-emerald-500 text-emerald-400' : 'bg-neutral-900/80 border-neutral-700 text-neutral-500'}`}
+                        title="Toggle Object Ball Line"
                      >
-                        {showGhostBall ? <CheckCircle2 size={16} /> : <div className="w-4 h-4 rounded-full border-2 border-neutral-600 border-dashed"/>}
+                        <ArrowUpRight size={16} />
                      </button>
                 </div>
 
