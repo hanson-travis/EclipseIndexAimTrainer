@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createRoot } from 'react-dom/client';
-import { Target, RotateCcw, Trophy, ChevronRight, ChevronDown, ChevronUp, Eye, EyeOff, BookOpen, Settings2, X, CheckCircle2, CircleDashed, ArrowUpRight } from 'lucide-react';
+import { Target, RotateCcw, Trophy, ChevronRight, ChevronDown, ChevronUp, Eye, EyeOff, BookOpen, Settings2, X, CheckCircle2, CircleDashed, ArrowUpRight, Magnet } from 'lucide-react';
 
 // --- Constants & Math ---
 const BALL_DIAMETER = 30; // Plan view size
@@ -18,13 +18,14 @@ const angleToEi = (angle: number) => {
 };
 
 // --- Difficulty Logic ---
-const getAllowedEIs = (level: number) => {
+// Defines which EIs can be chosen as TARGETS
+const getTargetEIs = (level: number) => {
     // Level is 1-based (1 to 10)
     let eis = [0, 1, 2, 3, 4];
     
     if (level >= 2) eis.push(5);
     if (level >= 3) eis.push(6);
-    if (level >= 4) eis.push(7, 8);
+    if (level >= 4) eis.push(7); // EI 8 (90deg) excluded per spec
     
     // Halves introduction
     if (level >= 5) eis.push(0.5, 1.5);
@@ -35,6 +36,11 @@ const getAllowedEIs = (level: number) => {
     if (level >= 10) eis.push(7.5);
     
     return eis.sort((a,b) => a-b);
+};
+
+// Defines the precision of the grid snapping (Interaction)
+const getSnapInterval = (level: number) => {
+    return level >= 5 ? 0.5 : 1.0;
 };
 
 // --- Ball Colors & Graphics ---
@@ -146,7 +152,7 @@ const UserGuideModal = ({ onClose }: { onClose: () => void }) => {
                                     <tr><td className="px-4 py-2 font-mono text-amber-400">5</td><td className="px-4 py-2">38.7°</td><td className="px-4 py-2">Thin Cut</td></tr>
                                     <tr><td className="px-4 py-2 font-mono text-amber-400">6</td><td className="px-4 py-2">48.6°</td><td className="px-4 py-2">1/4 Ball Hit</td></tr>
                                     <tr><td className="px-4 py-2 font-mono text-rose-400">7</td><td className="px-4 py-2">61.0°</td><td className="px-4 py-2">Very Thin (1/8)</td></tr>
-                                    <tr><td className="px-4 py-2 font-mono text-rose-400">8</td><td className="px-4 py-2">90.0°</td><td className="px-4 py-2">Edge / Clip</td></tr>
+                                    <tr><td className="px-4 py-2 font-mono text-rose-400">8</td><td className="px-4 py-2">90.0°</td><td className="px-4 py-2">Edge (Practice)</td></tr>
                                 </tbody>
                             </table>
                         </div>
@@ -159,7 +165,7 @@ const UserGuideModal = ({ onClose }: { onClose: () => void }) => {
                         <h3 className="text-white font-bold text-lg mb-2">Progression</h3>
                         <ul className="text-sm space-y-1 list-disc pl-4 marker:text-emerald-500">
                             <li><strong>Level 1:</strong> Standard Hits (EI 0 - 4)</li>
-                            <li><strong>Level 2-4:</strong> Extended Range (EI 5 - 8)</li>
+                            <li><strong>Level 2-4:</strong> Extended Range (EI 5 - 7)</li>
                             <li><strong>Level 5-10:</strong> Precision Mode (Half-EI increments)</li>
                         </ul>
                         <p className="text-sm mt-2">
@@ -200,7 +206,8 @@ const EclipseIndexTrainer = () => {
   // Settings
   const [isTestMode, setIsTestMode] = useState(false);
   const [showCbVisuals, setShowCbVisuals] = useState(true); // Combines Ghost Ball & Aim Line
-  const [showObLine, setShowObLine] = useState(true); // New toggle for OB->Pocket line
+  const [showObLine, setShowObLine] = useState(true); // Toggle for OB->Pocket line
+  const [snapMode, setSnapMode] = useState(false); // false = Smooth (Default), true = Snap while dragging
   const [showGuide, setShowGuide] = useState(false);
 
   // Refs
@@ -265,7 +272,7 @@ const EclipseIndexTrainer = () => {
 
     // Use current or newly updated difficulty
     const effectiveDifficulty = pendingDifficulty !== null ? pendingDifficulty : difficultyLevel;
-    const allowed = getAllowedEIs(effectiveDifficulty);
+    const allowed = getTargetEIs(effectiveDifficulty);
     const randomIdx = Math.floor(Math.random() * allowed.length);
     const ei = allowed[randomIdx];
     const angle = eiToAngle(ei);
@@ -273,8 +280,6 @@ const EclipseIndexTrainer = () => {
     
     // Calculate Pocket Distance
     const maxDist = calculateMaxPocketDistance(angle, dir);
-    // Object ball is at roughly BALL_DIAMETER (30) from origin.
-    // We want the pocket in the outer half of the remaining space.
     // Range: [30 + 0.5*(max-30), max]
     const safeMin = 30; // Min distance to clear the OB
     if (maxDist > safeMin) {
@@ -310,20 +315,6 @@ const EclipseIndexTrainer = () => {
   const scrollToPlan = () => {
     planSectionRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
-
-  const resetGame = () => {
-      setScore(0);
-      setCurrentBall(1);
-      setDifficultyLevel(1);
-      setPendingBall(null);
-      setPendingDifficulty(null);
-      setPendingBall(1);
-      setPendingDifficulty(1);
-      setTimeout(() => {
-        // Force reset
-        window.location.reload(); 
-      }, 50);
-  };
   
   // Custom reset without reload
   const handleReset = () => {
@@ -334,7 +325,7 @@ const EclipseIndexTrainer = () => {
       setPendingDifficulty(null);
       
       // Manually set new round params
-      const allowed = getAllowedEIs(1);
+      const allowed = getTargetEIs(1);
       const ei = allowed[Math.floor(Math.random() * allowed.length)];
       setTargetAngle(eiToAngle(ei));
       setTargetDirection(Math.random() > 0.5 ? 'right' : 'left');
@@ -470,58 +461,83 @@ const EclipseIndexTrainer = () => {
 
   }, [selectedEi, selectedDirection, isTestMode, currentBall]);
 
-  const handleInteraction = (e: React.MouseEvent | React.TouchEvent) => {
-    if (isEvaluated) return;
-    const canvas = shooterCanvasRef.current;
-    if (!canvas) return;
-    
+  // --- Interaction Logic (Pointer Events) ---
+  const calculateEiFromEvent = (e: React.PointerEvent, canvas: HTMLCanvasElement): { rawEi: number; dir: 'left' | 'right' } => {
     const rect = canvas.getBoundingClientRect();
     const scaleX = canvas.width / rect.width;
-    const clientX = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
-    const x = (clientX - rect.left) * scaleX;
+    const x = (e.clientX - rect.left) * scaleX;
     const width = canvas.width;
     
     const dx = x - width / 2;
     
-    // Scale user input to EI (max roughly 8)
-    const rawEi = (Math.abs(dx) / SHOOTER_DIAMETER) * 8;
+    // Scale user input to EI (Allow full 0-8 range regardless of level)
+    const rawEi = Math.min((Math.abs(dx) / SHOOTER_DIAMETER) * 8, 8);
     const dir = dx >= 0 ? 'right' : 'left';
+    return { rawEi, dir };
+  };
 
-    // Snapping Logic
-    // If level < 5, snap to integers (0, 1, 2...)
-    // If level >= 5, snap to halves (0, 0.5, 1, 1.5...)
-    const snapInterval = difficultyLevel >= 5 ? 0.5 : 1.0;
+  const snapValue = (val: number) => {
+    const snapInterval = getSnapInterval(difficultyLevel);
+    // Snap to nearest grid point
+    let snappedVal = Math.round(val / snapInterval) * snapInterval;
+    // Clamp to 8 (max EI)
+    return Math.min(snappedVal, 8);
+  };
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+      (e.target as HTMLElement).setPointerCapture(e.pointerId);
+      handleDrag(e);
+  };
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+       if (e.buttons === 1) handleDrag(e);
+  }
+
+  const handlePointerUp = (e: React.PointerEvent) => {
+       (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+       if (!isEvaluated && !snapMode) {
+            // Snap on Release Mode: Snap now
+            const canvas = shooterCanvasRef.current;
+            if (!canvas) return;
+            const { rawEi, dir } = calculateEiFromEvent(e, canvas);
+            
+            const snapped = snapValue(rawEi);
+            setSelectedEi(snapped);
+            setSelectedDirection(dir);
+       }
+  }
+
+  const handleDrag = (e: React.PointerEvent) => {
+    if (isEvaluated) return;
+    const canvas = shooterCanvasRef.current;
+    if (!canvas) return;
     
-    // Get valid EIs for this level
-    const allowed = getAllowedEIs(difficultyLevel);
-    
-    // First snap to grid
-    let snappedVal = Math.round(rawEi / snapInterval) * snapInterval;
-    
-    // Then find closest allowed value (though snapping should mostly handle it, this ensures bounds)
-    let closestEi = allowed[0];
-    let minDiff = Math.abs(snappedVal - allowed[0]);
-    
-    for (const val of allowed) {
-        if (Math.abs(snappedVal - val) < minDiff) {
-            minDiff = Math.abs(snappedVal - val);
-            closestEi = val;
-        }
+    const { rawEi, dir } = calculateEiFromEvent(e, canvas);
+
+    if (snapMode) {
+        // Snap-on-Drag Mode (Classic/Easy)
+        const snapped = snapValue(rawEi);
+        setSelectedEi(snapped);
+        setSelectedDirection(dir);
+    } else {
+        // Smooth Mode (Analog)
+        setSelectedEi(rawEi);
+        setSelectedDirection(dir);
     }
-    
-    setSelectedEi(closestEi);
-    setSelectedDirection(dir);
   };
 
   const evaluateShot = () => {
     // Check match
     const targetEi = Math.round(angleToEi(targetAngle) * 2) / 2; // precision to 0.5
-    const isCorrectEi = selectedEi === targetEi;
+    // Ensure we are comparing rounded values for logic check
+    const currentRoundedEi = Math.round(selectedEi * 2) / 2;
+    
+    const isCorrectEi = currentRoundedEi === targetEi;
     const isCorrectDir = selectedDirection === targetDirection || targetEi === 0;
 
     if (isCorrectEi && isCorrectDir) {
       // SUCCESS
-      setFeedback({ msg: `Correct! EI ${selectedEi} ${selectedEi > 0 ? selectedDirection : ''}.`, color: 'text-emerald-400' });
+      setFeedback({ msg: `Correct! EI ${currentRoundedEi} ${currentRoundedEi > 0 ? selectedDirection : ''}.`, color: 'text-emerald-400' });
       setScore(s => s + 10);
       
       // Progression Logic (Queued)
@@ -543,7 +559,7 @@ const EclipseIndexTrainer = () => {
       if (!isCorrectDir && targetEi !== 0) {
         hint = `Wrong cut direction. Needed ${targetDirection}.`;
       } else {
-        hint = selectedEi > targetEi ? "Too thin." : "Too full.";
+        hint = currentRoundedEi > targetEi ? "Too thin." : "Too full.";
       }
       setFeedback({ msg: `Miss! Target was EI ${targetEi} ${targetDirection}. ${hint}`, color: 'text-rose-400' });
       
@@ -554,6 +570,8 @@ const EclipseIndexTrainer = () => {
           setPendingBall(1);
       }
     }
+    // Snap visually to result just in case they were between steps in smooth mode (optional but clean)
+    setSelectedEi(currentRoundedEi);
     setIsEvaluated(true);
   };
 
@@ -665,6 +683,13 @@ const EclipseIndexTrainer = () => {
             </button>
             <div className="flex items-center gap-3">
                  <button 
+                    onClick={() => setSnapMode(!snapMode)}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-bold border transition-colors ${snapMode ? 'bg-emerald-900/40 border-emerald-600 text-emerald-500' : 'bg-neutral-800 border-neutral-700 text-neutral-500'}`}
+                    title={snapMode ? "Snap On Drag (Easy)" : "Smooth Drag (Default)"}
+                >
+                    <Magnet size={14} className={snapMode ? "" : "opacity-50"}/>
+                </button>
+                 <button 
                     onClick={() => setIsTestMode(!isTestMode)}
                     className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-bold border transition-colors ${isTestMode ? 'bg-amber-900/40 border-amber-600 text-amber-500' : 'bg-neutral-800 border-neutral-700 text-neutral-500'}`}
                 >
@@ -672,7 +697,7 @@ const EclipseIndexTrainer = () => {
                 </button>
                 {isTestMode || isEvaluated ? (
                     <div className="px-3 py-1 rounded bg-blue-900/30 text-blue-400 border border-blue-800/50 text-xs font-bold font-mono">
-                    EI: {selectedEi}
+                    EI: {selectedEi.toFixed(1)}
                 </div>
                 ) : (
                     <div className="px-3 py-1 rounded bg-neutral-800 text-neutral-500 border border-neutral-700 text-xs font-bold font-mono">
@@ -689,17 +714,17 @@ const EclipseIndexTrainer = () => {
                     ref={shooterCanvasRef} 
                     width={600} 
                     height={500} 
-                    onMouseDown={handleInteraction}
-                    onTouchStart={handleInteraction}
-                    onMouseMove={(e) => e.buttons === 1 && handleInteraction(e)}
-                    onTouchMove={handleInteraction}
+                    onPointerDown={handlePointerDown}
+                    onPointerMove={handlePointerMove}
+                    onPointerUp={handlePointerUp}
+                    onPointerCancel={handlePointerUp}
                     className="w-full aspect-[6/5] cursor-ew-resize touch-none rounded-xl shadow-2xl border-4 border-[#3e2723] bg-[#2c5d3f]"
                 />
                 
                 {!isEvaluated && (
                     <div className="absolute bottom-6 left-0 right-0 text-center pointer-events-none opacity-60 group-hover:opacity-100 transition-opacity">
                         <span className="inline-block text-[10px] uppercase tracking-widest text-white bg-black/40 backdrop-blur-sm px-3 py-1.5 rounded-full border border-white/10">
-                            Drag to Aim
+                            {snapMode ? "Drag to Aim" : "Release to Snap"}
                         </span>
                     </div>
                 )}
