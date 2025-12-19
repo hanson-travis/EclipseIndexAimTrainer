@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createRoot } from 'react-dom/client';
-import { Target, RotateCcw, Trophy, ChevronRight, ChevronDown, ChevronUp, Eye, EyeOff, BookOpen, Settings2, X, CheckCircle2, CircleDashed, ArrowUpRight, Magnet } from 'lucide-react';
+import { Target, RotateCcw, Trophy, ChevronRight, ChevronDown, ChevronUp, Eye, EyeOff, BookOpen, Settings2, X, CheckCircle2, CircleDashed, ArrowUpRight, Magnet, ArrowUp, Play, Disc } from 'lucide-react';
 
 // --- Constants & Math ---
 const BALL_DIAMETER = 30; // Plan view size
@@ -36,6 +36,70 @@ const getTargetEIs = (level: number) => {
     if (level >= 10) eis.push(7.5);
     
     return eis.sort((a,b) => a-b);
+};
+
+// Returns the EIs that are introduced in this specific level to give them higher weight
+const getNewEIsForLevel = (level: number) => {
+    switch(level) {
+        case 1: return []; // Base set
+        case 2: return [5];
+        case 3: return [6];
+        case 4: return [7];
+        case 5: return [0.5, 1.5];
+        case 6: return [2.5, 3.5];
+        case 7: return [4.5];
+        case 8: return [5.5];
+        case 9: return [6.5];
+        case 10: return [7.5];
+        default: return [];
+    }
+};
+
+const selectTargetShot = (level: number) => {
+    const allowed = getTargetEIs(level);
+    const newEIs = getNewEIsForLevel(level);
+    
+    // Weighted Random Selection
+    // Weights: 0 = 1, New = 7, Standard = 4
+    // Note: Non-zero EIs implicitly have 2x probability mass because they can be Left or Right.
+    // The weights below represent the weight per SIDE.
+    
+    let candidates: { ei: number, weight: number }[] = [];
+    let totalWeight = 0;
+    
+    for (const ei of allowed) {
+        let weight = 0;
+        if (ei === 0) {
+            weight = 1; // Straight in is rare
+        } else {
+            // Check if this EI is "new" for this level
+            const isNew = newEIs.includes(ei);
+            const singleSideWeight = isNew ? 7 : 4;
+            // We add the weight for both sides combined for the selection of the EI magnitude
+            weight = singleSideWeight * 2; 
+        }
+        candidates.push({ ei, weight });
+        totalWeight += weight;
+    }
+    
+    let r = Math.random() * totalWeight;
+    let selectedEi = 0;
+    
+    for (const c of candidates) {
+        if (r < c.weight) {
+            selectedEi = c.ei;
+            break;
+        }
+        r -= c.weight;
+    }
+    
+    // Determine direction
+    let direction: 'left' | 'right' = 'right';
+    if (selectedEi > 0) {
+        direction = Math.random() > 0.5 ? 'right' : 'left';
+    }
+    
+    return { ei: selectedEi, direction };
 };
 
 // Defines the precision of the grid snapping (Interaction)
@@ -156,21 +220,6 @@ const UserGuideModal = ({ onClose }: { onClose: () => void }) => {
                                 </tbody>
                             </table>
                         </div>
-                        <p className="text-xs text-neutral-500 mt-2 italic">
-                            *Note: This trainer uses pure geometric aiming (`sin(angle) = EI/8`). Real-world physics factors like throw and friction are intentionally excluded to focus on visual overlap recognition.
-                        </p>
-                    </section>
-
-                     <section>
-                        <h3 className="text-white font-bold text-lg mb-2">Progression</h3>
-                        <ul className="text-sm space-y-1 list-disc pl-4 marker:text-emerald-500">
-                            <li><strong>Level 1:</strong> Standard Hits (EI 0 - 4)</li>
-                            <li><strong>Level 2-4:</strong> Extended Range (EI 5 - 7)</li>
-                            <li><strong>Level 5-10:</strong> Precision Mode (Half-EI increments)</li>
-                        </ul>
-                        <p className="text-sm mt-2">
-                            Clear a rack (15 balls) to advance to the next difficulty level.
-                        </p>
                     </section>
                 </div>
                 
@@ -184,7 +233,91 @@ const UserGuideModal = ({ onClose }: { onClose: () => void }) => {
     );
 }
 
-const EclipseIndexTrainer = () => {
+const SplashScreen = ({ onStart }: { onStart: (mode: '8'|'9'|'10') => void }) => {
+    return (
+        <div className="min-h-screen bg-neutral-900 flex flex-col items-center justify-center p-6 relative overflow-hidden">
+            {/* Background elements */}
+            <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-emerald-900/20 rounded-full blur-[100px]" />
+            <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-blue-900/20 rounded-full blur-[100px]" />
+
+            <div className="z-10 text-center mb-12 animate-in fade-in slide-in-from-bottom-8 duration-700">
+                <div className="inline-flex items-center justify-center p-4 bg-emerald-900/30 rounded-full mb-6 border border-emerald-800 shadow-2xl shadow-emerald-900/50">
+                    <Target size={48} className="text-emerald-400" />
+                </div>
+                <h1 className="text-4xl md:text-6xl font-black text-white tracking-tighter mb-2">
+                    ECLIPSE <span className="text-emerald-500">SIGHT</span>
+                </h1>
+                <p className="text-neutral-400 text-lg md:text-xl font-light tracking-wide">
+                    Precision Aim Trainer
+                </p>
+            </div>
+
+            <div className="z-10 w-full max-w-md space-y-4 animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-200">
+                <button 
+                    onClick={() => onStart('8')}
+                    className="w-full group relative overflow-hidden bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 p-4 rounded-2xl transition-all hover:scale-[1.02] hover:shadow-xl hover:shadow-black/50 text-left"
+                >
+                    <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-full bg-black border-2 border-neutral-600 flex items-center justify-center shadow-lg relative">
+                             <span className="text-white font-black text-xl">8</span>
+                             <div className="absolute top-2 left-2 w-3 h-2 bg-white/20 rounded-full -rotate-45" />
+                        </div>
+                        <div>
+                            <h3 className="text-white font-bold text-lg group-hover:text-emerald-400 transition-colors">8-Ball Mode</h3>
+                            <p className="text-neutral-500 text-xs">Standard aids. Magnetic aim. Play to 8.</p>
+                        </div>
+                        <ChevronRight className="ml-auto text-neutral-600 group-hover:text-emerald-400 transition-colors" />
+                    </div>
+                </button>
+
+                <button 
+                    onClick={() => onStart('9')}
+                    className="w-full group relative overflow-hidden bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 p-4 rounded-2xl transition-all hover:scale-[1.02] hover:shadow-xl hover:shadow-black/50 text-left"
+                >
+                    <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-full bg-[#facc15] border-2 border-yellow-600 flex items-center justify-center shadow-lg relative overflow-hidden">
+                             <div className="absolute inset-x-0 top-[20%] bottom-[20%] bg-white" />
+                             <span className="relative text-black font-black text-xl">9</span>
+                        </div>
+                        <div>
+                            <h3 className="text-white font-bold text-lg group-hover:text-yellow-400 transition-colors">9-Ball Mode</h3>
+                            <p className="text-neutral-500 text-xs">No Ghost Ball or OB Lines. Play to 9.</p>
+                        </div>
+                        <ChevronRight className="ml-auto text-neutral-600 group-hover:text-yellow-400 transition-colors" />
+                    </div>
+                </button>
+
+                 <button 
+                    onClick={() => onStart('10')}
+                    className="w-full group relative overflow-hidden bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 p-4 rounded-2xl transition-all hover:scale-[1.02] hover:shadow-xl hover:shadow-black/50 text-left"
+                >
+                    <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-full bg-blue-600 border-2 border-blue-400 flex items-center justify-center shadow-lg relative overflow-hidden">
+                             <div className="absolute inset-x-0 top-[20%] bottom-[20%] bg-white" />
+                             <span className="relative text-black font-black text-xl">10</span>
+                        </div>
+                        <div>
+                            <h3 className="text-white font-bold text-lg group-hover:text-blue-400 transition-colors">10-Ball Mode</h3>
+                            <p className="text-neutral-500 text-xs">No Aids. Smooth Aiming. Play to 10.</p>
+                        </div>
+                        <ChevronRight className="ml-auto text-neutral-600 group-hover:text-blue-400 transition-colors" />
+                    </div>
+                </button>
+            </div>
+            
+            <p className="absolute bottom-6 text-neutral-600 text-xs text-center">
+                v1.0 &bull; Eclipse Aim Trainer
+            </p>
+        </div>
+    );
+};
+
+const EclipseSight = () => {
+  // Game Configuration
+  const [gameState, setGameState] = useState<'SPLASH' | 'PLAYING'>('SPLASH');
+  const [gameMode, setGameMode] = useState<'8' | '9' | '10'>('8');
+  const [maxBalls, setMaxBalls] = useState(8);
+
   // Game State
   const [currentBall, setCurrentBall] = useState(1);
   const [difficultyLevel, setDifficultyLevel] = useState(1); // 1-10
@@ -203,11 +336,12 @@ const EclipseIndexTrainer = () => {
   const [isEvaluated, setIsEvaluated] = useState(false);
   const [feedback, setFeedback] = useState<{ msg: string; color: string } | null>(null);
   
-  // Settings
+  // Visual Settings
   const [isTestMode, setIsTestMode] = useState(false);
-  const [showCbVisuals, setShowCbVisuals] = useState(true); // Combines Ghost Ball & Aim Line
-  const [showObLine, setShowObLine] = useState(true); // Toggle for OB->Pocket line
-  const [snapMode, setSnapMode] = useState(false); // false = Smooth (Default), true = Snap while dragging
+  const [showAimLine, setShowAimLine] = useState(true);
+  const [showGhostBall, setShowGhostBall] = useState(true);
+  const [showObLine, setShowObLine] = useState(true);
+  const [snapMode, setSnapMode] = useState(false); 
   const [showGuide, setShowGuide] = useState(false);
 
   // Refs
@@ -215,6 +349,44 @@ const EclipseIndexTrainer = () => {
   const shooterCanvasRef = useRef<HTMLCanvasElement>(null);
   const planSectionRef = useRef<HTMLDivElement>(null);
   const shooterSectionRef = useRef<HTMLDivElement>(null);
+
+  const startGame = (mode: '8'|'9'|'10') => {
+      setGameMode(mode);
+      setGameState('PLAYING');
+      setCurrentBall(1);
+      setDifficultyLevel(1);
+      setScore(0);
+      setPendingBall(null);
+      setPendingDifficulty(null);
+      
+      // Set Defaults based on Mode
+      if (mode === '8') {
+          setMaxBalls(8);
+          setShowAimLine(true);
+          setShowGhostBall(true);
+          setShowObLine(true);
+          setSnapMode(true);
+      } else if (mode === '9') {
+          setMaxBalls(9);
+          setShowAimLine(true); // Keep CB Path
+          setShowGhostBall(false); // Eliminate Ghost Ball
+          setShowObLine(false); // Eliminate OB Path
+          setSnapMode(true);
+      } else {
+          // 10 Ball
+          setMaxBalls(10);
+          setShowAimLine(false);
+          setShowGhostBall(false);
+          setShowObLine(false);
+          setSnapMode(false); // Disable magnet
+      }
+
+      startNewRound(true);
+  };
+
+  const handleReturnToMenu = () => {
+      setGameState('SPLASH');
+  };
 
   // Helper to calculate max visible pocket distance
   const calculateMaxPocketDistance = (angleDeg: number, direction: 'left' | 'right') => {
@@ -259,27 +431,31 @@ const EclipseIndexTrainer = () => {
   };
 
   // Initialize a new round
-  const startNewRound = useCallback(() => {
-    // Apply Pending Updates
-    if (pendingBall !== null) {
-        setCurrentBall(pendingBall);
-        setPendingBall(null);
-    }
-    if (pendingDifficulty !== null) {
-        setDifficultyLevel(pendingDifficulty);
-        setPendingDifficulty(null);
+  const startNewRound = useCallback((reset = false) => {
+    // If it's a hard reset, use default values
+    let effectiveDifficulty = difficultyLevel;
+    
+    if (reset) {
+        effectiveDifficulty = 1;
+    } else {
+         // Apply Pending Updates
+        if (pendingBall !== null) {
+            setCurrentBall(pendingBall);
+            setPendingBall(null);
+        }
+        if (pendingDifficulty !== null) {
+            setDifficultyLevel(pendingDifficulty);
+            setPendingDifficulty(null);
+            effectiveDifficulty = pendingDifficulty;
+        }
     }
 
-    // Use current or newly updated difficulty
-    const effectiveDifficulty = pendingDifficulty !== null ? pendingDifficulty : difficultyLevel;
-    const allowed = getTargetEIs(effectiveDifficulty);
-    const randomIdx = Math.floor(Math.random() * allowed.length);
-    const ei = allowed[randomIdx];
+    // Weighted selection logic replacement
+    const { ei, direction } = selectTargetShot(effectiveDifficulty);
     const angle = eiToAngle(ei);
-    const dir = Math.random() > 0.5 ? 'right' : 'left';
     
     // Calculate Pocket Distance
-    const maxDist = calculateMaxPocketDistance(angle, dir);
+    const maxDist = calculateMaxPocketDistance(angle, direction);
     // Range: [30 + 0.5*(max-30), max]
     const safeMin = 30; // Min distance to clear the OB
     if (maxDist > safeMin) {
@@ -291,7 +467,7 @@ const EclipseIndexTrainer = () => {
     }
     
     setTargetAngle(angle);
-    setTargetDirection(dir);
+    setTargetDirection(direction);
     
     setSelectedEi(0);
     setSelectedDirection('right');
@@ -299,14 +475,12 @@ const EclipseIndexTrainer = () => {
     setIsEvaluated(false);
     setFeedback(null);
 
-    // Auto-scroll to plan view
-    planSectionRef.current?.scrollIntoView({ behavior: 'smooth' });
+    // Auto-scroll to plan view (only if not initial load/reset to avoid jumping on mobile)
+    if (!reset) {
+        planSectionRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
   }, [difficultyLevel, pendingBall, pendingDifficulty]);
 
-  // Initial load
-  useEffect(() => {
-    startNewRound();
-  }, []); 
 
   const scrollToShooter = () => {
     shooterSectionRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -317,18 +491,17 @@ const EclipseIndexTrainer = () => {
   };
   
   // Custom reset without reload
-  const handleReset = () => {
+  const handleResetRack = () => {
       setScore(0);
       setCurrentBall(1);
       setDifficultyLevel(1);
       setPendingBall(null);
       setPendingDifficulty(null);
       
-      // Manually set new round params
-      const allowed = getTargetEIs(1);
-      const ei = allowed[Math.floor(Math.random() * allowed.length)];
+      // Manually set new round params for Level 1
+      const { ei, direction } = selectTargetShot(1);
       setTargetAngle(eiToAngle(ei));
-      setTargetDirection(Math.random() > 0.5 ? 'right' : 'left');
+      setTargetDirection(direction);
       setPocketDistance(180);
       setSelectedEi(0);
       setIsEvaluated(false);
@@ -338,6 +511,8 @@ const EclipseIndexTrainer = () => {
 
   // --- Rendering Plan View ---
   useEffect(() => {
+    if (gameState !== 'PLAYING') return;
+
     const canvas = planCanvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
@@ -353,7 +528,7 @@ const EclipseIndexTrainer = () => {
     const gbY = height * 0.35; 
     
     // 1. Aim Line (CB -> GB) [TOGGLEABLE]
-    if (showCbVisuals) {
+    if (showAimLine) {
         ctx.setLineDash([5, 5]);
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
         ctx.lineWidth = 2;
@@ -393,7 +568,7 @@ const EclipseIndexTrainer = () => {
     ctx.fill();
 
     // 5. Ghost Ball [TOGGLEABLE]
-    if (showCbVisuals) {
+    if (showGhostBall) {
         ctx.strokeStyle = 'rgba(255,255,255,0.6)';
         ctx.lineWidth = 1;
         ctx.setLineDash([3, 3]);
@@ -412,10 +587,11 @@ const EclipseIndexTrainer = () => {
     ctx.arc(centerX, cbY, BALL_DIAMETER / 2, 0, Math.PI * 2);
     ctx.fill();
 
-  }, [targetAngle, targetDirection, currentBall, showCbVisuals, showObLine, pocketDistance]);
+  }, [targetAngle, targetDirection, currentBall, showAimLine, showGhostBall, showObLine, pocketDistance, gameState]);
 
   // --- Rendering Shooter View ---
   useEffect(() => {
+    if (gameState !== 'PLAYING') return;
     const canvas = shooterCanvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
@@ -459,7 +635,7 @@ const EclipseIndexTrainer = () => {
         ctx.stroke();
     }
 
-  }, [selectedEi, selectedDirection, isTestMode, currentBall]);
+  }, [selectedEi, selectedDirection, isTestMode, currentBall, gameState]);
 
   // --- Interaction Logic (Pointer Events) ---
   const calculateEiFromEvent = (e: React.PointerEvent, canvas: HTMLCanvasElement): { rawEi: number; dir: 'left' | 'right' } => {
@@ -541,7 +717,7 @@ const EclipseIndexTrainer = () => {
       setScore(s => s + 10);
       
       // Progression Logic (Queued)
-      if (currentBall === 15) {
+      if (currentBall === maxBalls) {
           if (difficultyLevel < 10) {
             setPendingDifficulty(difficultyLevel + 1);
             setFeedback(prev => ({ msg: (prev?.msg || '') + ` Level Up! Entering Level ${difficultyLevel + 1}.`, color: 'text-yellow-400' }));
@@ -578,6 +754,11 @@ const EclipseIndexTrainer = () => {
   // UI Helpers
   const { color: ballColor, isStriped: ballStriped } = getBallVisuals(currentBall);
 
+  // --- RENDER ---
+  if (gameState === 'SPLASH') {
+      return <SplashScreen onStart={startGame} />;
+  }
+
   return (
     <div className="w-full max-w-lg mx-auto bg-neutral-900 min-h-screen shadow-2xl overflow-hidden relative">
       {showGuide && <UserGuideModal onClose={() => setShowGuide(false)} />}
@@ -592,7 +773,7 @@ const EclipseIndexTrainer = () => {
             <div>
                 <h1 className="text-xl md:text-2xl font-bold tracking-tight text-emerald-100 flex items-center gap-2">
                     <Target className="text-emerald-500" size={24} /> 
-                    Eclipse Trainer
+                    Eclipse Sight
                 </h1>
                 <div className="flex items-center gap-3 mt-1">
                     <div className="flex items-center gap-1.5 bg-neutral-800 px-2 py-0.5 rounded-full border border-neutral-700">
@@ -607,13 +788,22 @@ const EclipseIndexTrainer = () => {
                 </div>
             </div>
             
-            <button 
-                onClick={() => setShowGuide(true)}
-                className="p-2 text-neutral-400 hover:text-white hover:bg-neutral-800 rounded-full transition-colors"
-                title="User Guide"
-            >
-                <BookOpen size={24}/>
-            </button>
+            <div className="flex gap-2">
+                <button 
+                    onClick={handleReturnToMenu} 
+                    className="p-2 text-neutral-400 hover:text-white hover:bg-neutral-800 rounded-full transition-colors"
+                    title="Menu"
+                >
+                    <Settings2 size={24}/>
+                </button>
+                <button 
+                    onClick={() => setShowGuide(true)}
+                    className="p-2 text-neutral-400 hover:text-white hover:bg-neutral-800 rounded-full transition-colors"
+                    title="User Guide"
+                >
+                    <BookOpen size={24}/>
+                </button>
+            </div>
         </div>
 
         {/* Plan Canvas Container */}
@@ -623,9 +813,16 @@ const EclipseIndexTrainer = () => {
                 {/* Visual Settings Toolbar */}
                 <div className="absolute -right-3 top-12 flex flex-col gap-2">
                      <button 
-                        onClick={() => setShowCbVisuals(!showCbVisuals)}
-                        className={`p-2 rounded-full shadow-lg border backdrop-blur-md transition-all ${showCbVisuals ? 'bg-emerald-900/80 border-emerald-500 text-emerald-400' : 'bg-neutral-900/80 border-neutral-700 text-neutral-500'}`}
-                        title="Toggle Ghost Ball & Aim Line"
+                        onClick={() => setShowAimLine(!showAimLine)}
+                        className={`p-2 rounded-full shadow-lg border backdrop-blur-md transition-all ${showAimLine ? 'bg-emerald-900/80 border-emerald-500 text-emerald-400' : 'bg-neutral-900/80 border-neutral-700 text-neutral-500'}`}
+                        title="Toggle Aim Line"
+                     >
+                        <ArrowUp size={16} />
+                     </button>
+                     <button 
+                        onClick={() => setShowGhostBall(!showGhostBall)}
+                        className={`p-2 rounded-full shadow-lg border backdrop-blur-md transition-all ${showGhostBall ? 'bg-emerald-900/80 border-emerald-500 text-emerald-400' : 'bg-neutral-900/80 border-neutral-700 text-neutral-500'}`}
+                        title="Toggle Ghost Ball"
                      >
                         <CircleDashed size={16} />
                      </button>
@@ -756,14 +953,14 @@ const EclipseIndexTrainer = () => {
               ) : (
                 <div className="flex-1 flex gap-3">
                     <button 
-                    onClick={startNewRound} 
+                    onClick={() => startNewRound(false)} 
                     className="flex-1 bg-white hover:bg-neutral-200 text-neutral-900 font-bold py-4 rounded-xl shadow-lg shadow-white/5 flex items-center justify-center gap-2 transition-all active:scale-95"
                     >
                     <ChevronRight size={20} /> 
-                    {currentBall === 15 && isEvaluated && feedback?.msg.includes("Correct") ? 'START NEXT RACK' : 'NEXT BALL'}
+                    {currentBall === maxBalls && isEvaluated && feedback?.msg.includes("Correct") ? 'START NEXT RACK' : 'NEXT BALL'}
                     </button>
                      <button 
-                        onClick={handleReset} 
+                        onClick={handleResetRack} 
                         className="w-16 bg-neutral-800 hover:bg-neutral-700 text-neutral-400 rounded-xl flex items-center justify-center border border-neutral-700 transition-colors"
                         title="Reset Rack"
                     >
@@ -780,5 +977,5 @@ const EclipseIndexTrainer = () => {
 const container = document.getElementById('root');
 if (container) {
   const root = createRoot(container);
-  root.render(<EclipseIndexTrainer />);
+  root.render(<EclipseSight />);
 }
