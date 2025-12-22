@@ -6,6 +6,13 @@ import { Target, RotateCcw, Trophy, ChevronRight, ChevronDown, ChevronUp, Eye, E
 const BALL_DIAMETER = 30; // Plan view size
 const SHOOTER_DIAMETER = 260; 
 
+// Plan View Layout Configuration
+const PLAN_WIDTH = 400;
+const PLAN_HEIGHT = 600;
+const PLAN_CENTER_X = PLAN_WIDTH / 2;
+const PLAN_GB_Y = 300; // Ghost Ball Y (Object Ball reference) - Moved down to allow more space above
+const PLAN_CB_Y = 550; // Cue Ball Y - Moved down to maintain relative distance (250px gap)
+
 // Mapping EI to Cut Angle (Degrees)
 const eiToAngle = (ei: number) => {
   const sinTheta = ei / 8;
@@ -391,10 +398,10 @@ const EclipseSight = () => {
   // Helper to calculate max visible pocket distance
   const calculateMaxPocketDistance = (angleDeg: number, direction: 'left' | 'right') => {
     // Canvas Geometry
-    const w = 400;
-    const h = 500;
-    const originX = w / 2; // 200
-    const originY = h * 0.35; // 175 (Ghost Ball Center)
+    const w = PLAN_WIDTH;
+    const h = PLAN_HEIGHT;
+    const originX = PLAN_CENTER_X; 
+    const originY = PLAN_GB_Y;
     const padding = 35; // Pocket radius (22) + margin
 
     const angleRad = (angleDeg * Math.PI) / 180;
@@ -523,9 +530,9 @@ const EclipseSight = () => {
     ctx.clearRect(0, 0, width, height);
 
     // Geometry
-    const centerX = width / 2;
-    const cbY = height * 0.85;
-    const gbY = height * 0.35; 
+    const centerX = PLAN_CENTER_X;
+    const cbY = PLAN_CB_Y;
+    const gbY = PLAN_GB_Y; 
     
     // 1. Aim Line (CB -> GB) [TOGGLEABLE]
     if (showAimLine) {
@@ -845,9 +852,9 @@ const EclipseSight = () => {
                 </div>
                 <canvas 
                     ref={planCanvasRef} 
-                    width={400} 
-                    height={500} 
-                    className="w-full aspect-[4/5] rounded-lg shadow-inner bg-[#2c5d3f]" 
+                    width={PLAN_WIDTH} 
+                    height={PLAN_HEIGHT} 
+                    className="w-full aspect-[2/3] rounded-lg shadow-inner bg-[#2c5d3f]" 
                 />
             </div>
             <p className="mt-6 text-sm text-neutral-400 text-center max-w-xs">
@@ -892,7 +899,7 @@ const EclipseSight = () => {
                 >
                     {isTestMode ? <Eye size={14}/> : <EyeOff size={14}/>}
                 </button>
-                {isTestMode || isEvaluated ? (
+                {isTestMode || isEvaluated || gameMode === '8' ? (
                     <div className="px-3 py-1 rounded bg-blue-900/30 text-blue-400 border border-blue-800/50 text-xs font-bold font-mono">
                     EI: {selectedEi.toFixed(1)}
                 </div>
